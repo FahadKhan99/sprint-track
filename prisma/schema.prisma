@@ -1,0 +1,128 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id             String   @id @default(cuid())
+  email          String   @unique
+  name           String?
+  clerkUserId    String   @unique
+  imageUrl       String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  assignedIssues Issue[]  @relation("Assignee")
+  createdIssues  Issue[]  @relation("Reporter")
+}
+
+model Organization {
+  id               String             @id @default(cuid())
+  name             String
+  slug             String             @unique
+  organizationLogo String
+  clerkOrgId       String             @unique
+  ownerId          String
+  users            OrganizationUser[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  Project   Project[]
+}
+
+enum UserRole {
+  ADMIN
+  MEMBER
+}
+
+model OrganizationUser {
+  id             String       @id @default(cuid())
+  organizationId String // clerk org id
+  organization   Organization @relation(fields: [organizationId], references: [clerkOrgId])
+
+  userId String
+  role   UserRole?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([organizationId, userId])
+}
+
+model Project {
+  id             String       @id @default(cuid())
+  name           String
+  description    String?
+  key            String
+  organizationId String
+  ownerId        String
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  issues         Issue[]
+  sprints        Sprint[]
+  organization   Organization @relation(fields: [organizationId], references: [clerkOrgId])
+
+  @@index([organizationId, key])
+}
+
+model Sprint {
+  id          String       @id @default(cuid())
+  name        String       @unique
+  goal        String?
+  startDate   DateTime
+  endDate     DateTime
+  capacity    Int?
+  projectId   String
+  completedAt DateTime?
+  createdBy   String?
+  status      SprintStatus @default(PLANNED)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  issues      Issue[]
+  project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model Issue {
+  id          String        @id @default(cuid())
+  title       String
+  description String
+  order       Int
+  status      IssueStatus   @default(TODO)
+  priority    IssuePriority @default(LOW)
+  reporterId  String
+  assigneeId  String
+  projectId   String
+  sprintId    String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  assignee    User          @relation("Assignee", fields: [assigneeId], references: [clerkUserId])
+  project     Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  reporter    User          @relation("Reporter", fields: [reporterId], references: [clerkUserId])
+  sprint      Sprint?       @relation(fields: [sprintId], references: [id], onDelete: SetNull)
+
+  @@index([order, status])
+}
+
+enum SprintStatus {
+  ACTIVE
+  COMPLETED
+  PLANNED
+}
+
+enum IssueStatus {
+  TODO
+  IN_PROGRESS
+  IN_REVIEW
+  DONE
+}
+
+enum IssuePriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
